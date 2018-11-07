@@ -31,7 +31,7 @@ class Discriminator(nn.Module):
         x = self.bn4(x)
         x = self.relu4(x)
         x = self.conv5(x)
-        x = self.sigmoid5(x)
+        # x = self.sigmoid5(x)
         return x
 
 
@@ -63,10 +63,25 @@ class DiscriminatorSmall(nn.Module):
         return x
 
 
+class DiscriminatorWasserstein(nn.Module):
+    def __init__(self, ndf=64):
+        super(DiscriminatorWasserstein, self).__init__()
+        self.linear1 = nn.Linear(28*28, 128)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.linear2 = nn.Linear(128, 1)
+
+    def forward(self, x):
+        x = x.view(x.size(0), 28*28)
+        x = self.linear1(x)
+        x = self.relu1(x)
+        x = self.linear2(x)
+        return x
+
+
 class Generator(nn.Module):
-    def __init__(self, ngf):
+    def __init__(self, ngf, nz=100):
         super(Generator, self).__init__()
-        self.deconv1 = nn.ConvTranspose2d(100, 8*ngf, 4, 1, bias=False)
+        self.deconv1 = nn.ConvTranspose2d(nz, 8*ngf, 4, 1, bias=False)
         self.bn1 = nn.BatchNorm2d(8*ngf)
         self.relu1 = nn.ReLU(inplace=True)
         self.deconv2 = nn.ConvTranspose2d(8*ngf, 4*ngf, 4, 2, padding=1, bias=False)
@@ -101,9 +116,9 @@ class Generator(nn.Module):
 
 
 class GeneratorSmall(nn.Module):
-    def __init__(self, ngf):
+    def __init__(self, ngf, nz=100):
         super(GeneratorSmall, self).__init__()
-        self.deconv1 = nn.ConvTranspose2d(100, 4*ngf, 4, 1, bias=False)
+        self.deconv1 = nn.ConvTranspose2d(nz, 4*ngf, 4, 1, bias=False)
         self.bn1 = nn.BatchNorm2d(4*ngf)
         self.relu1 = nn.ReLU(inplace=True)
         self.deconv2 = nn.ConvTranspose2d(4*ngf, 2*ngf, 4, 2, padding=1, bias=False)
@@ -128,6 +143,25 @@ class GeneratorSmall(nn.Module):
         x = self.relu3(x)
         x = self.deconv4(x)
         x = self.relu4(x)
+        return x
+
+
+class GeneratorWasserstein(nn.Module):
+    def __init__(self, ngf=64, nz=10):
+        super(GeneratorWasserstein, self).__init__()
+        self.nz = nz
+        self.linear1 = nn.Linear(self.nz, 128)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.linear2 = nn.Linear(128, 28*28)
+        self.relu2 = nn.Sigmoid()
+
+    def forward(self, x):
+        x = x.view(x.size(0), self.nz)
+        x = self.linear1(x)
+        x = self.relu1(x)
+        x = self.linear2(x)
+        x = self.relu2(x)
+        x = x.view(x.size(0), 1, 28, 28)
         return x
 
 

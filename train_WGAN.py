@@ -9,7 +9,8 @@ from tensorboardX import SummaryWriter
 import torchvision
 import argparse
 import torch.nn as nn
-
+# from torch.autograd import Variable
+# from tensorflow.examples.tutorials.mnist import input_data
 
 def parse():
     parser = argparse.ArgumentParser()
@@ -22,7 +23,7 @@ def parse():
 
     optional.add_argument('--batch_size', type=int, default=64, help='Batch size')
     optional.add_argument('--optim_step', type=int, default=20, help='Number of epochs for learning rate decrease')
-    optional.add_argument('--learning_rate', type=float, default=0.0002, help='Learning rate')
+    optional.add_argument('--learning_rate', type=float, default=0.0001, help='Learning rate')
     optional.add_argument('--normalize', action='store_true', help='Use if you want your data to be normalized')
     optional.add_argument('--download_dataset', action='store_true', help='Use it if you want to download MNIST to'
                                                                           ' DATA_PATH folder')
@@ -33,6 +34,7 @@ def parse():
     optional.add_argument('--ngf', type=int, default=128)
     optional.add_argument('--ndf', type=int, default=128)
     optional.add_argument('--clipping_threshold', type=float, default=0.01)
+    optional.add_argument('--noise_length', type=int, default=100)
 
     args = parser.parse_args()
     return args
@@ -48,43 +50,43 @@ def train(disc, gen, optim_disc, optim_gen, crit_disc, crit_gen, epoch, dataload
     print('Epoch {}'.format(epoch+1))
     data = iter(dataloader)
     while(True):
-        for j in range(5):
+        for _ in range(5):
             disc.zero_grad()
+            gen.zero_grad()
             try:
                 true_imgs, _ = next(data)
             except StopIteration:
                 break_flag = True
                 break
             true_imgs = true_imgs.cuda()
-            noise = torch.randn(true_imgs.size(0), 100, 1, 1).cuda()
+            noise = torch.randn(true_imgs.size(0), args.noise_length, 1, 1).cuda()
             fake_imgs = gen(noise)
             pred_true = disc(true_imgs)
             pred_fake = disc(fake_imgs)
-            loss_disc = -torch.mean(pred_true) + torch.mean(pred_fake)
+            loss_disc = -(torch.mean(pred_true) - torch.mean(pred_fake))
             loss_disc_sum += loss_disc.item()/5.0
             loss_disc.backward()
             optim_disc.step()
             for p in disc.parameters():
                 p.data.clamp_(-args.clipping_threshold, args.clipping_threshold)
 
-        if break_flag:
-            break
         disc.zero_grad()
         gen.zero_grad()
-        noise = torch.randn(true_imgs.size(0), 100, 1, 1).cuda()
+        noise = torch.randn(true_imgs.size(0), args.noise_length, 1, 1).cuda()
         fake_imgs = gen(noise)
         pred_fake_gen = disc(fake_imgs)
         loss_gen = -torch.mean(pred_fake_gen)
         loss_gen_sum += loss_gen.item()
         loss_gen.backward()
         optim_gen.step()
+        if break_flag:
+            break
 
         iter_count += 1
 
         if iter_count % round(1000.0/float(args.batch_size)) == 0:
-            # im2show = torchvision.utils.make_grid(fake_imgs)
-            # writer.add_image('Images/test{}-{}'.format(epoch+1, i), im2show)
-            torchvision.utils.save_image(fake_imgs[0:64], 'results/test{}-{}.png'.format(epoch+1, iter_count))
+            im2show = torchvision.utils.make_grid(fake_imgs)
+            writer.add_image('Images/generated_{}_{}'.format(epoch+1, i), im2show)
     writer.add_scalar('disc_loss', loss_disc_sum, epoch + 1)
     writer.add_scalar('gen_loss', loss_gen_sum, epoch + 1)
 
@@ -93,7 +95,7 @@ if __name__ == '__main__':
 
     opt = parse()
 
-    transforms_list = [torchvision.transforms.Resize(64),
+    transforms_list = [torchvision.transforms.Resize(28),
                        torchvision.transforms.ToTensor()]
     if opt.normalize:
         transforms_list.append(torchvision.transforms.Normalize(mean=(0.5, 0.5, 0.5),
@@ -106,9 +108,9 @@ if __name__ == '__main__':
     mnist_train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=opt.batch_size, shuffle=True)
     mnist_test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=opt.batch_size, shuffle=False)
 
-    discriminator = models.Discriminator(ndf=opt.ndf).cuda()
+    discriminator = models.DiscriminatorWasserstein(ndf=opt.ndf).cuda()
     # discriminator.initialize()
-    generator = models.Generator(ngf=opt.ngf).cuda()
+    generator = models.GeneratorWasserstein(ngf=opt.ngf, nz=opt.noise_length).cuda()
     # generator.initialize()
     discriminator.apply(models.weights_init)
     generator.apply(models.weights_init)
