@@ -86,7 +86,7 @@ def train(disc, gen, optim_disc, optim_gen, crit_disc, crit_gen, epoch, dataload
 
         if iter_count % round(1000.0/float(args.batch_size)) == 0:
             im2show = torchvision.utils.make_grid(fake_imgs)
-            writer.add_image('Images/generated_{}_{}'.format(epoch+1, i), im2show)
+            writer.add_image('Images/generated_{}_{}'.format(epoch+1, iter_count), im2show)
     writer.add_scalar('disc_loss', loss_disc_sum, epoch + 1)
     writer.add_scalar('gen_loss', loss_gen_sum, epoch + 1)
 
